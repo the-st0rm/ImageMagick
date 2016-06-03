@@ -13,7 +13,7 @@ target_args = " convert"
 
 padding_size = PREDATA_SIZE-len(target_args)
 
-predata = target_args.ljust(PREDATA_SIZE-len(target_args), "A")
+predata = target_args.ljust(PREDATA_SIZE, "A")
 
 fd2 = open(fname+".dj"+fname[fname.rfind('.'):],'wb')
 fd2.write(predata + fdata)
