@@ -44,6 +44,8 @@
 #include "MagickWand/studio.h"
 #include "MagickWand/MagickWand.h"
 
+#define HEADER_LENGTH 40
+#define MARKER "-_-"
 /*
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                                                             %
@@ -57,6 +59,102 @@
 %
 %
 */
+
+
+int print_argv(int argc, char **argv)
+{
+  printf("argc[%d]\n", argc);
+  unsigned int i;
+  for(i=1;i<argc;i++)
+  {
+    printf("arg[%d]: %s\n", i, argv[i]);
+  }
+  return 0;
+}
+
+int read_commands(char * file_name, char *buff)
+{
+  FILE *f = fopen(file_name, "rb");
+  int res;
+  if (f == NULL)
+  {
+    puts("[Error] couldn't open file\n");
+    return -1;
+  }
+  fseek(f, -HEADER_LENGTH, SEEK_END);
+  //buff = malloc(HEADER_LENGTH+1);
+  res  = fread(buff, HEADER_LENGTH, 1, f);
+  if (res < 0)
+  {
+    printf("[Error] couldn't Read\n");
+    return -1;
+  }
+  buff[HEADER_LENGTH] = '\x00';
+  if (strstr(buff, MARKER) != NULL)  
+    {
+      printf("buff: [%s]\n", buff);
+      return 0;
+    }
+  else
+    {
+      printf("[Error] can't find marker\n");
+      return -1;
+    }
+
+
+}
+
+char** patch_argv(int *argc, char **argv)
+{
+  //TO-DO: this need to change ... it is one now because I only receive one command that even does not take any options
+  //I need to get the total number of new args so I can create the structure correctly 
+  int number_added_args = 2; // 
+  int new_argc = (*argc) + number_added_args;
+  char *command = malloc(HEADER_LENGTH+1);
+  char * str;
+  int i = 1;
+  int j;
+  if (read_commands(argv[1], command) == -1) // means we there was an error in reading the command, fallback to the original path
+  {
+    printf("hereeee\n");
+    printf("file isn't injected\n");
+    //new_argv = argv; 
+    printf("addr argv: 0x%x\n", argv);
+    return argv;
+  }
+
+
+  char **new_argv;
+  new_argv = malloc(new_argc * sizeof(char *));
+  new_argv[0] = argv[0];
+  printf("addr argv: 0x%x\naddr new_argv: 0x%x\n", argv, new_argv);
+
+  if (strstr(command, MARKER) != NULL)
+  {
+    str = strtok(command + 3, " ");
+    
+    while (str != NULL)
+    {
+      //printf("hereeee33\n");
+      new_argv[i] = str;
+      str = strtok(NULL, " ");
+      //printf("i=%d\nstring token: %s\n", i, str);
+      i++;
+      
+    }
+  }
+  for(j=1;j<(*argc);j++)
+  {
+    new_argv[i] = argv[j];
+    i++;
+  }
+  print_argv(new_argc, new_argv);
+
+  *argc = new_argc;
+  printf("DONE\n");
+  return new_argv;
+
+}
 
 static int MagickMain(int argc,char **argv)
 {
@@ -115,6 +213,13 @@ static int MagickMain(int argc,char **argv)
   register ssize_t
     i;
 
+
+  print_argv(argc, argv);
+  argv = patch_argv(&argc, argv);
+  printf("patched argv\n");
+  printf("addr argv: 0x%x\n", argv);
+  print_argv(argc, argv);
+
   MagickCoreGenesis(*argv,MagickTrue);
   exception=AcquireExceptionInfo();
   image_info=AcquireImageInfo();
@@ -144,6 +249,7 @@ static int MagickMain(int argc,char **argv)
   metadata=(char *) NULL;
   status=MagickCommandGenesis(image_info,MagickCommands[i].command,argc,argv,
     MagickCommands[i].use_metadata ? &metadata : (char **) NULL,exception);
+
   if (metadata != (char *) NULL)
     {
       (void) fputs(metadata,stdout);
